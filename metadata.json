@@ -1,0 +1,6 @@
+{
+  "name": "Bizino OS",
+  "description": "سیستم‌عامل هوشمند کسب‌وکار Bizino OS - دستیار هوش مصنوعی، مدیریت لیدها، امتیاز سلامت کسب‌وکار و پیش‌نمایش زنده وب‌سایت",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
