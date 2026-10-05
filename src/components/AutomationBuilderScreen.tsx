@@ -245,6 +245,16 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
   const [sessions, setSessions] = useState<AutomationSession[]>(initialSessions);
   const [activeSessionId, setActiveSessionId] = useState<string>('s-auto-1');
   const [isSideSheetOpen, setIsSideSheetOpen] = useState(false);
+  const [isSideSheetClosing, setIsSideSheetClosing] = useState(false);
+
+  const handleCloseSideSheetWithSlideOut = () => {
+    if (isSideSheetClosing) return;
+    setIsSideSheetClosing(true);
+    setTimeout(() => {
+      setIsSideSheetOpen(false);
+      setIsSideSheetClosing(false);
+    }, 240);
+  };
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
 
@@ -1213,15 +1223,17 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
       )}
 
       {/* ======================================================== */}
-      {/* SESSIONS SIDE SHEET - PURE X-AXIS SLIDE */}
+      {/* SESSIONS SIDE SHEET - PURE X-AXIS SLIDE IN & SLIDE OUT */}
       {/* ======================================================== */}
       {isSideSheetOpen && (
         <div
-          className="fixed inset-0 z-40 bg-slate-900/40 flex justify-end"
-          onClick={() => setIsSideSheetOpen(false)}
+          className="fixed inset-0 z-40 bg-slate-900/40 flex justify-end select-none"
+          onClick={handleCloseSideSheetWithSlideOut}
         >
           <div
-            className="w-[84%] max-w-xs h-full bg-white shadow-2xl p-4 flex flex-col justify-between overflow-y-auto animate-slide-in-right"
+            className={`w-[84%] max-w-xs h-full bg-white shadow-2xl p-4 flex flex-col justify-between overflow-y-auto ${
+              isSideSheetClosing ? 'animate-slide-out-right' : 'animate-slide-in-right'
+            }`}
             onClick={(e) => e.stopPropagation()}
             dir="rtl"
           >
@@ -1237,7 +1249,7 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
                 </div>
                 <button
                   type="button"
-                  onClick={() => setIsSideSheetOpen(false)}
+                  onClick={handleCloseSideSheetWithSlideOut}
                   className="p-1 rounded-full text-slate-400 hover:text-slate-700"
                 >
                   <X size={16} />
@@ -1253,7 +1265,7 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
                       key={session.id}
                       onClick={() => {
                         setActiveSessionId(session.id);
-                        setIsSideSheetOpen(false);
+                        handleCloseSideSheetWithSlideOut();
                       }}
                       className={`p-2.5 rounded-xl border text-right transition-all cursor-pointer ${
                         isSelected
@@ -1291,7 +1303,7 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
               <button
                 type="button"
                 onClick={() => {
-                  setIsSideSheetOpen(false);
+                  handleCloseSideSheetWithSlideOut();
                   handlePromptSubmit('یک نود تریگر را به دو شاخه مجزا وصل کن');
                 }}
                 className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors border border-slate-200"

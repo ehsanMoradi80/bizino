@@ -26,17 +26,29 @@ export const SiteMiniPreviewModal: React.FC<SiteMiniPreviewModalProps> = ({
   onOpenFullSite,
 }) => {
   const [activeSection, setActiveSection] = useState<'shop' | 'featured' | 'story' | 'checkout'>('shop');
+  const [isClosing, setIsClosing] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleCloseWithSlideDown = () => {
+    if (isClosing) return;
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose();
+      setIsClosing(false);
+    }, 220);
+  };
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs select-none"
       dir="rtl"
-      onClick={onClose}
+      onClick={handleCloseWithSlideDown}
     >
       <div
-        className="w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col animate-slide-in-up text-slate-800"
+        className={`w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-slate-200/90 overflow-hidden flex flex-col text-slate-800 ${
+          isClosing ? 'animate-slide-out-down' : 'animate-slide-in-up'
+        }`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Browser Top Bar */}
@@ -57,7 +69,7 @@ export const SiteMiniPreviewModal: React.FC<SiteMiniPreviewModalProps> = ({
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseWithSlideDown}
               className="p-1.5 rounded-full hover:bg-slate-200 text-slate-600 transition-colors"
               title="بستن پیش‌نمایش"
             >

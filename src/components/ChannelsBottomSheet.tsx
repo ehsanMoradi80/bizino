@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Check, Plus, Trash2 } from 'lucide-react';
 import { ConnectedChannel, PlatformType } from '../types';
 import {
@@ -125,24 +125,83 @@ export const ChannelsBottomSheet: React.FC<ChannelsBottomSheetProps> = ({
   onRequestDeleteChannel,
   onClose,
 }) => {
-  const [touchStartY, setTouchStartY] = useState<number | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [mainTab, setMainTab] = useState<'all' | 'global' | 'iranian'>('all');
   const [subTab, setSubTab] = useState<string>('all');
 
+  // Drag-to-dismiss states
+  const [dragY, setDragY] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [isClosing, setIsClosing] = useState<boolean>(false);
+
+  const startYRef = useRef<number | null>(null);
+
   if (!isOpen) return null;
 
+  const handleCloseWithSlideDown = () => {
+    if (isClosing) return;
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose();
+      setIsClosing(false);
+      setDragY(0);
+    }, 220);
+  };
+
+  // Touch handlers for drag-to-dismiss
   const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStartY(e.touches[0].clientY);
+    startYRef.current = e.touches[0].clientY;
+    setIsDragging(true);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchStartY === null) return;
+    if (startYRef.current === null) return;
     const currentY = e.touches[0].clientY;
-    if (currentY - touchStartY > 65) {
-      onClose();
-      setTouchStartY(null);
+    const deltaY = currentY - startYRef.current;
+    if (deltaY > 0) {
+      setDragY(deltaY);
+    } else {
+      setDragY(0);
     }
+  };
+
+  const handleTouchEnd = () => {
+    setIsDragging(false);
+    if (dragY > 75) {
+      handleCloseWithSlideDown();
+    } else {
+      setDragY(0);
+    }
+    startYRef.current = null;
+  };
+
+  // Pointer / Mouse handlers for desktop testing
+  const handlePointerDown = (e: React.PointerEvent) => {
+    startYRef.current = e.clientY;
+    setIsDragging(true);
+    (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging || startYRef.current === null) return;
+    const deltaY = e.clientY - startYRef.current;
+    if (deltaY > 0) {
+      setDragY(deltaY);
+    } else {
+      setDragY(0);
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    setIsDragging(false);
+    (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+    if (dragY > 75) {
+      handleCloseWithSlideDown();
+    } else {
+      setDragY(0);
+    }
+    startYRef.current = null;
   };
 
   const availableSubPlatforms = platformMetaList.filter((p) => {
@@ -160,27 +219,62 @@ export const ChannelsBottomSheet: React.FC<ChannelsBottomSheetProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/50 backdrop-blur-xs select-none animate-fade-in"
+      className="fixed inset-0 z-50 flex flex-col justify-end bg-slate-900/50 backdrop-blur-xs select-none"
       dir="rtl"
-      onClick={onClose}
+      onClick={handleCloseWithSlideDown}
     >
       <div
-        className="w-full max-w-[420px] mx-auto bg-white rounded-t-[32px] p-5 shadow-2xl space-y-3.5 animate-slide-in-up max-h-[85vh] flex flex-col"
+        className={`w-full max-w-[420px] mx-auto bg-white rounded-t-[32px] p-5 shadow-2xl space-y-3.5 max-h-[85vh] flex flex-col ${
+          isClosing
+            ? 'animate-slide-out-down'
+            : !isDragging && dragY === 0
+            ? 'animate-slide-in-up'
+            : ''
+        }`}
+        style={{
+          transform: isClosing
+            ? 'translateY(100%)'
+            : dragY > 0
+            ? `translateY(${dragY}px)`
+            : undefined,
+          transition: isDragging
+            ? 'none'
+            : 'transform 0.24s cubic-bezier(0.16, 1, 0.3, 1)',
+        }}
         onClick={(e) => e.stopPropagation()}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
       >
-        {/* Drag Handle (NO X button as required) */}
-        <div className="w-12 h-1.5 bg-slate-300 rounded-full mx-auto -mt-1 cursor-grab shrink-0" />
+        {/* Drag Handle Bar (Touch / Pointer drag area) */}
+        <div
+          className="w-full pt-1 pb-3 -mt-2 cursor-grab active:cursor-grabbing flex items-center justify-center shrink-0 touch-none"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+          title="به سمت پایین بکشید تا بسته شود"
+        >
+          <div className="w-14 h-1.5 bg-slate-300 hover:bg-slate-400 rounded-full transition-colors" />
+        </div>
 
-        {/* Title */}
-        <div className="flex items-center justify-between shrink-0">
+        {/* Title Bar (Also draggable for easy mobile dismissal) */}
+        <div
+          className="flex items-center justify-between shrink-0 touch-none cursor-grab active:cursor-grabbing"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
+        >
           <div className="text-right">
             <h3 className="text-sm font-black text-slate-900">
               مدیریت کانال‌های فروش
             </h3>
             <p className="text-[10px] text-slate-400">
-              سوییچ بین پیج‌ها یا اتصال اکانت جدید
+              سوییچ بین پیج‌ها یا اتصال اکانت جدید (به پایین بکشید)
             </p>
           </div>
           <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
@@ -291,7 +385,7 @@ export const ChannelsBottomSheet: React.FC<ChannelsBottomSheetProps> = ({
                     key={ch.id}
                     onClick={() => {
                       onSelectChannel(ch);
-                      onClose();
+                      handleCloseWithSlideDown();
                     }}
                     className={`w-full p-2.5 rounded-2xl border text-right flex items-center justify-between text-xs transition-all cursor-pointer ${
                       isActive
@@ -375,7 +469,7 @@ export const ChannelsBottomSheet: React.FC<ChannelsBottomSheetProps> = ({
                     key={p.type}
                     type="button"
                     onClick={() => {
-                      onClose();
+                      handleCloseWithSlideDown();
                       onStartOAuth(p.type);
                     }}
                     className={`p-2.5 rounded-2xl ${p.badgeColor} flex items-center gap-2 text-xs font-bold shadow-2xs hover:opacity-95 active:scale-95 transition-all text-right`}

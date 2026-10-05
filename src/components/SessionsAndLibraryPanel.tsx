@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   X,
   Plus,
@@ -78,6 +78,31 @@ export const SessionsAndLibraryPanel: React.FC<SessionsAndLibraryPanelProps> = (
     setIsAddingLibraryItem(false);
   };
 
+  const [isClosing, setIsClosing] = useState(false);
+  const touchStartXRef = useRef<number | null>(null);
+
+  const handleCloseWithSlideOut = () => {
+    if (isClosing) return;
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose();
+    }, 240);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartXRef.current = e.touches[0].clientX;
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartXRef.current === null) return;
+    const diffX = e.touches[0].clientX - touchStartXRef.current;
+    // In RTL, swiping right (positive diffX) drags side sheet out towards right edge
+    if (diffX > 60) {
+      handleCloseWithSlideOut();
+      touchStartXRef.current = null;
+    }
+  };
+
   const filteredSessions = selectedFolderId
     ? sessions.filter((s) => s.folderId === selectedFolderId)
     : sessions;
@@ -88,13 +113,17 @@ export const SessionsAndLibraryPanel: React.FC<SessionsAndLibraryPanelProps> = (
 
   return (
     <div
-      className="fixed inset-0 z-50 flex bg-slate-900/40 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex bg-slate-900/40 backdrop-blur-xs select-none"
       dir="rtl"
-      onClick={onClose}
+      onClick={handleCloseWithSlideOut}
     >
       <div
-        className="w-full max-w-[340px] h-full bg-white border-l border-slate-200 flex flex-col shadow-2xl animate-slide-in-right text-slate-800 select-none"
+        className={`w-full max-w-[340px] h-full bg-white border-l border-slate-200 flex flex-col shadow-2xl text-slate-800 select-none ${
+          isClosing ? 'animate-slide-out-right' : 'animate-slide-in-right'
+        }`}
         onClick={(e) => e.stopPropagation()}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
       >
         {/* Top Header */}
         <div className="p-4 border-b border-slate-100 flex items-center justify-between">
@@ -122,8 +151,8 @@ export const SessionsAndLibraryPanel: React.FC<SessionsAndLibraryPanelProps> = (
           </div>
 
           <button
-            onClick={onClose}
-            className="w-7 h-7 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700"
+            onClick={handleCloseWithSlideOut}
+            className="w-7 h-7 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-700 transition-colors"
           >
             <X size={15} />
           </button>
@@ -137,7 +166,7 @@ export const SessionsAndLibraryPanel: React.FC<SessionsAndLibraryPanelProps> = (
               <button
                 onClick={() => {
                   onCreateSession(selectedFolderId || undefined);
-                  onClose();
+                  handleCloseWithSlideOut();
                 }}
                 className="flex-1 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs hover:bg-slate-800 active:scale-95 transition-all"
               >
@@ -221,7 +250,7 @@ export const SessionsAndLibraryPanel: React.FC<SessionsAndLibraryPanelProps> = (
                     key={session.id}
                     onClick={() => {
                       onSelectSession(session.id);
-                      onClose();
+                      handleCloseWithSlideOut();
                     }}
                     className={`p-2.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between group ${
                       isActive

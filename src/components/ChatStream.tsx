@@ -27,8 +27,10 @@ import {
 } from './SocialIcons';
 import { MonthlySalesChart } from './MonthlySalesChart';
 import { BusinessMetricCard } from './BusinessMetricCard';
-import { SiteMiniPreviewModal } from './SiteMiniPreviewModal';
-import { Lock, ExternalLink } from 'lucide-react';
+import { WebsiteInlineMiniPreviewCard } from './WebsiteInlineMiniPreviewCard';
+import { AudioSpeechVisualizer } from './AudioSpeechVisualizer';
+import { Lock, ExternalLink, Volume2, VolumeX } from 'lucide-react';
+import { AiOrb } from './AiOrb';
 
 interface ChatStreamProps {
   user: UserProfile;
@@ -123,7 +125,89 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const [isMiniPreviewOpen, setIsMiniPreviewOpen] = useState(false);
+  const [openInlinePreviews, setOpenInlinePreviews] = useState<Record<string, boolean>>({
+    'msg-welcome': true, // Auto-expand preview on initial site introduction for convenience
+  });
+
+  const toggleInlinePreview = (msgId: string) => {
+    setOpenInlinePreviews((prev) => ({
+      ...prev,
+      [msgId]: !prev[msgId],
+    }));
+  };
+
+  // Continuous Voice Coach Presence State
+  const [isVoiceMuted, setIsVoiceMuted] = useState(false);
+  const [isCoachSpeaking, setIsCoachSpeaking] = useState(false);
+  const [coachWaves, setCoachWaves] = useState<number[]>([30, 55, 40, 75, 50, 65]);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+
+  // Synthesizes pleasant harmonic audio chimes for voice simulation
+  const playCoachChime = (toneIdx = 0) => {
+    if (isVoiceMuted) return;
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new AudioCtx();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      const freqs = [350, 415, 466, 523, 622, 698];
+      const freq = freqs[toneIdx % freqs.length];
+
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      osc.type = 'sine';
+
+      gain.gain.setValueAtTime(0.035, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.14);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } catch {
+      // Audio graceful fallback
+    }
+  };
+
+  // Initial acoustic continuity chime upon entering chat
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (!isVoiceMuted) {
+        playCoachChime(1);
+        setTimeout(() => playCoachChime(3), 150);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Continuous sync: when AI is typing or generating a response, the coach pulses and speaks
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isAiTyping && !isVoiceMuted) {
+      setIsCoachSpeaking(true);
+      let step = 0;
+      interval = setInterval(() => {
+        playCoachChime(step % 6);
+        setCoachWaves(Array.from({ length: 6 }, () => Math.floor(25 + Math.random() * 70)));
+        step++;
+      }, 180);
+    } else {
+      setIsCoachSpeaking(false);
+      setCoachWaves([25, 40, 55, 35, 45, 30]);
+    }
+
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isAiTyping, isVoiceMuted]);
 
   const handleScroll = () => {
     if (!containerRef.current || !onScrollTopChange) return;
@@ -142,31 +226,56 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
       className="flex-1 overflow-y-auto px-4 py-3 space-y-4 select-none"
       dir="rtl"
     >
-      {/* Top Hero Section */}
-      <div className="pt-2 pb-2 space-y-2.5 text-right">
-        <div className="relative inline-block">
-          <div className="w-16 h-16 rounded-full p-0.5 bg-gradient-to-tr from-emerald-400 via-teal-500 to-indigo-500 shadow-md">
-            <img
-              src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=160&auto=format&fit=crop&q=80"
-              alt="بیزینو"
-              className="w-full h-full rounded-full object-cover border-2 border-white"
-            />
+      {/* ======================================================== */}
+      {/* CONTINUOUS INTERACTIVE VOICE COACH ENTITY (AVATAR & WAVES) */}
+      {/* ======================================================== */}
+      <div className="pt-1 pb-1 space-y-2 text-right bg-gradient-to-r from-emerald-50/80 via-indigo-50/50 to-white p-3.5 rounded-3xl border border-slate-200/80 shadow-2xs">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            {/* Interactive Shimmering Orb Avatar */}
+            <div className="relative">
+              <AiOrb size="sm" isListening={isAiTyping || isCoachSpeaking} />
+              <div className="absolute -bottom-1 -left-1 w-4 h-4 rounded-full bg-slate-900 text-emerald-400 flex items-center justify-center border-2 border-white shadow-2xs">
+                <Sparkles size={8} />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h3 className="text-xs font-black text-slate-900 leading-tight">
+                  کوچ اختصاصی بیزینو
+                </h3>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+              </div>
+              <span className="text-[10px] text-slate-500 font-medium block">
+                {isAiTyping ? 'در حال صحبت و تحلیل شاخص‌ها...' : 'همراه پیوسته رشد فروش شما'}
+              </span>
+            </div>
           </div>
-          <div className="absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full bg-slate-900 text-white flex items-center justify-center border-2 border-white shadow-xs">
-            <Sparkles size={10} />
+
+          {/* Continuous Voice Visualizer & Volume Toggle */}
+          <div className="flex items-center gap-2 bg-white/90 border border-slate-200/90 px-3 py-1 rounded-full shadow-2xs">
+            <AudioSpeechVisualizer
+              isSpeaking={(isAiTyping || isCoachSpeaking) && !isVoiceMuted}
+              size="sm"
+              variant="emerald"
+              label={isAiTyping ? 'در حال گفتار...' : 'کوچ صوتی'}
+            />
+            <button
+              type="button"
+              onClick={() => setIsVoiceMuted(!isVoiceMuted)}
+              className="p-0.5 text-slate-500 hover:text-slate-800 transition-colors"
+              title={isVoiceMuted ? 'فعال‌سازی صوت کوچ' : 'بی‌صدا کردن صوت'}
+            >
+              {isVoiceMuted ? <VolumeX size={12} /> : <Volume2 size={12} />}
+            </button>
           </div>
         </div>
 
-        <div className="space-y-0.5">
-          <span className="text-emerald-700 font-bold text-xs block">
-            درود {user.name}،
-          </span>
-          <h2 className="text-base md:text-lg font-black text-slate-900 leading-tight">
-            خوش آمدید، بیایید فروش را ارتقا دهیم!
-          </h2>
-          <p className="text-[11px] text-slate-500 leading-relaxed max-w-xs">
-            مسیر استراتژی فروش فعال است. کانال‌ها، دایرکت‌ها و شاخص‌های کلیدی از این میز کار پایش می‌شوند.
-          </p>
+        {/* Dynamic Coach Continuous Thought Speech Bubble */}
+        <div className="p-2.5 rounded-2xl bg-white/90 border border-slate-100 text-xs text-slate-800 leading-relaxed font-medium">
+          <span className="text-emerald-700 font-bold ml-1">درود {user.name}؛</span>
+          <span>من اینجام و هم‌مسیر شما هستم. وضعیت کانال‌ها، دایرکت‌ها و استراتژی فروش را با هم پایش می‌کنیم.</span>
         </div>
       </div>
 
@@ -200,21 +309,48 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
               {/* AI Message Bubble (Left-aligned) */}
               {!isUser && (
                 <div className="max-w-[88%] text-right space-y-2.5 animate-fade-in-up">
-                  {/* Main AI Text */}
+                  {/* Main AI Text & Inline Mini-Preview Card */}
                   {msg.text && (
-                    <div className="bg-white border border-slate-200/90 text-slate-800 px-3.5 py-2.5 rounded-2xl rounded-tl-xs shadow-2xs text-xs leading-relaxed animate-fade-in-up space-y-1.5">
-                      <div>{msg.text}</div>
+                    <div className="bg-white border border-slate-200/90 text-slate-800 px-3.5 py-2.5 rounded-2xl rounded-tl-xs shadow-2xs text-xs leading-relaxed animate-fade-in-up space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">{msg.text}</div>
+                        {/* Audio Speech Visualizer synced with AI Speech Processing */}
+                        <AudioSpeechVisualizer
+                          isSpeaking={isAiTyping && idx === messages.length - 1}
+                          size="sm"
+                          variant="emerald"
+                        />
+                      </div>
+
                       {(msg.text.includes('سایت') || msg.text.includes('فروشگاه') || msg.text.includes('وبسایت')) && (
-                        <div className="pt-1 border-t border-slate-100 flex items-center justify-between">
+                        <div className="pt-1.5 border-t border-slate-100 flex flex-col gap-1.5">
                           <button
                             type="button"
-                            onClick={() => setIsMiniPreviewOpen(true)}
-                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-700 transition-all shadow-2xs active:scale-95"
+                            onClick={() => toggleInlinePreview(msg.id)}
+                            className={`inline-flex items-center justify-between gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-bold transition-all shadow-2xs active:scale-95 ${
+                              openInlinePreviews[msg.id]
+                                ? 'bg-slate-900 text-white border-slate-900'
+                                : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
+                            }`}
                           >
-                            <Lock size={10} className="text-emerald-500" />
-                            <span>پیش‌نمایش سریع وبسایت (charm-aria.ir)</span>
-                            <ExternalLink size={10} className="text-slate-400" />
+                            <div className="flex items-center gap-1.5">
+                              <Lock size={10} className={openInlinePreviews[msg.id] ? 'text-emerald-400' : 'text-emerald-600'} />
+                              <span>
+                                {openInlinePreviews[msg.id]
+                                  ? 'بستن کارت پیش‌نمایش سایت'
+                                  : 'پیش‌نمایش کارت وبسایت (charm-aria.ir)'}
+                              </span>
+                            </div>
+                            <ExternalLink size={10} className={openInlinePreviews[msg.id] ? 'text-slate-300' : 'text-slate-400'} />
                           </button>
+
+                          {/* INLINE MINI PREVIEW CARD (NO MODAL!) */}
+                          {openInlinePreviews[msg.id] && (
+                            <WebsiteInlineMiniPreviewCard
+                              initialIsBuilding={true}
+                              onOpenFullSite={onNavigateToSite}
+                            />
+                          )}
                         </div>
                       )}
                     </div>
@@ -272,7 +408,7 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
                           type="button"
                           onClick={() => {
                             if (opt.id.includes('site') || opt.label.includes('سایت') || opt.label.includes('فروشگاه') || opt.label.includes('ویترین')) {
-                              setIsMiniPreviewOpen(true);
+                              toggleInlinePreview(msg.id);
                             } else {
                               onSelectOption(opt);
                             }
@@ -449,32 +585,18 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
           );
         })}
 
-        {/* Typing Indicator */}
+        {/* Typing Indicator with Audio Speech Visualizer */}
         {isAiTyping && (
           <div className="w-full flex justify-end animate-fade-in-up">
-            <div className="bg-white border border-slate-200/90 px-3 py-2 rounded-2xl rounded-tl-xs shadow-2xs flex items-center gap-1.5 text-slate-800">
-              <span className="text-[10px] text-slate-400 font-bold">بیزینو در حال پردازش</span>
-              <div className="flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce" />
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.2s]" />
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.4s]" />
-              </div>
+            <div className="bg-white border border-slate-200/90 px-3.5 py-2 rounded-2xl rounded-tl-xs shadow-2xs flex items-center gap-2 text-slate-800">
+              <AudioSpeechVisualizer isSpeaking={true} size="sm" variant="rainbow" />
+              <span className="text-[11px] text-slate-700 font-bold">بیزینو در حال پردازش صوت و پیام...</span>
             </div>
           </div>
         )}
 
         <div ref={bottomRef} />
       </div>
-
-      {/* Website In-Chat Mini-Preview Modal */}
-      <SiteMiniPreviewModal
-        isOpen={isMiniPreviewOpen}
-        onClose={() => setIsMiniPreviewOpen(false)}
-        onOpenFullSite={() => {
-          setIsMiniPreviewOpen(false);
-          onNavigateToSite();
-        }}
-      />
     </div>
   );
 };

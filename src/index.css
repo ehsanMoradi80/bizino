@@ -166,6 +166,98 @@ input, button, textarea, select {
   animation: slideInUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@keyframes slideOutRight {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes slideOutLeft {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes slideOutDown {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+.animate-slide-out-right {
+  animation: slideOutRight 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-out-left {
+  animation: slideOutLeft 0.26s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-out-down {
+  animation: slideOutDown 0.24s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes audioWavePulse {
+  0%, 100% {
+    height: 4px;
+    opacity: 0.55;
+    transform: scaleY(0.3);
+  }
+  50% {
+    height: 20px;
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+
+@keyframes speechAura {
+  0%, 100% {
+    transform: scale(0.96);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+.animate-audio-bar-1 {
+  animation: audioWavePulse 0.7s ease-in-out infinite;
+}
+.animate-audio-bar-2 {
+  animation: audioWavePulse 0.85s ease-in-out 0.12s infinite;
+}
+.animate-audio-bar-3 {
+  animation: audioWavePulse 0.65s ease-in-out 0.25s infinite;
+}
+.animate-audio-bar-4 {
+  animation: audioWavePulse 0.95s ease-in-out 0.08s infinite;
+}
+.animate-audio-bar-5 {
+  animation: audioWavePulse 0.75s ease-in-out 0.3s infinite;
+}
+.animate-audio-bar-6 {
+  animation: audioWavePulse 0.9s ease-in-out 0.18s infinite;
+}
+.animate-audio-bar-7 {
+  animation: audioWavePulse 0.68s ease-in-out 0.05s infinite;
+}
+.animate-audio-bar-8 {
+  animation: audioWavePulse 1.05s ease-in-out 0.22s infinite;
+}
+
+.animate-speech-aura {
+  animation: speechAura 1.8s ease-in-out infinite;
+}
+
 @keyframes flowDash {
   to {
     stroke-dashoffset: -24;
