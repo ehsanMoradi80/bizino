@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import {
   Sparkles,
   ArrowLeft,
@@ -27,6 +27,8 @@ import {
 } from './SocialIcons';
 import { MonthlySalesChart } from './MonthlySalesChart';
 import { BusinessMetricCard } from './BusinessMetricCard';
+import { SiteMiniPreviewModal } from './SiteMiniPreviewModal';
+import { Lock, ExternalLink } from 'lucide-react';
 
 interface ChatStreamProps {
   user: UserProfile;
@@ -121,6 +123,7 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const [isMiniPreviewOpen, setIsMiniPreviewOpen] = useState(false);
 
   const handleScroll = () => {
     if (!containerRef.current || !onScrollTopChange) return;
@@ -199,8 +202,21 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
                 <div className="max-w-[88%] text-right space-y-2.5 animate-fade-in-up">
                   {/* Main AI Text */}
                   {msg.text && (
-                    <div className="bg-white border border-slate-200/90 text-slate-800 px-3.5 py-2.5 rounded-2xl rounded-tl-xs shadow-2xs text-xs leading-relaxed animate-fade-in-up">
-                      {msg.text}
+                    <div className="bg-white border border-slate-200/90 text-slate-800 px-3.5 py-2.5 rounded-2xl rounded-tl-xs shadow-2xs text-xs leading-relaxed animate-fade-in-up space-y-1.5">
+                      <div>{msg.text}</div>
+                      {(msg.text.includes('سایت') || msg.text.includes('فروشگاه') || msg.text.includes('وبسایت')) && (
+                        <div className="pt-1 border-t border-slate-100 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => setIsMiniPreviewOpen(true)}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-50 hover:bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-700 transition-all shadow-2xs active:scale-95"
+                          >
+                            <Lock size={10} className="text-emerald-500" />
+                            <span>پیش‌نمایش سریع وبسایت (charm-aria.ir)</span>
+                            <ExternalLink size={10} className="text-slate-400" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -254,7 +270,13 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
                         <button
                           key={opt.id}
                           type="button"
-                          onClick={() => onSelectOption(opt)}
+                          onClick={() => {
+                            if (opt.id.includes('site') || opt.label.includes('سایت') || opt.label.includes('فروشگاه') || opt.label.includes('ویترین')) {
+                              setIsMiniPreviewOpen(true);
+                            } else {
+                              onSelectOption(opt);
+                            }
+                          }}
                           style={{ animationDelay: `${optIdx * 45}ms` }}
                           className="w-full p-2.5 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200/90 text-right text-xs font-bold text-slate-800 flex items-center justify-between shadow-2xs active:scale-98 transition-all group animate-fade-in-up"
                         >
@@ -443,6 +465,16 @@ export const ChatStream: React.FC<ChatStreamProps> = ({
 
         <div ref={bottomRef} />
       </div>
+
+      {/* Website In-Chat Mini-Preview Modal */}
+      <SiteMiniPreviewModal
+        isOpen={isMiniPreviewOpen}
+        onClose={() => setIsMiniPreviewOpen(false)}
+        onOpenFullSite={() => {
+          setIsMiniPreviewOpen(false);
+          onNavigateToSite();
+        }}
+      />
     </div>
   );
 };

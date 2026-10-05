@@ -1,4 +1,4 @@
-import React, { useState, useRef, useId } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   ArrowRight,
   Zap,
@@ -18,7 +18,9 @@ import {
   Split,
   GitBranch,
   Sliders,
-  Check,
+  Move,
+  Hand,
+  RotateCcw,
 } from 'lucide-react';
 import {
   InstagramIcon,
@@ -85,8 +87,8 @@ const initialSessions: AutomationSession[] = [
         content: 'دریافت کلمات «قیمت»، «چند»، «موجوده» یا سوال در استوری',
         badge: 'Trigger',
         badgeColor: 'bg-amber-500 text-white',
-        x: 100,
-        y: 20,
+        x: 130,
+        y: 30,
       },
       {
         id: 'node-2',
@@ -96,8 +98,8 @@ const initialSessions: AutomationSession[] = [
         content: 'اگر موجودی کیف دوشی بالای صفر بود',
         badge: 'Condition A',
         badgeColor: 'bg-indigo-600 text-white',
-        x: 30,
-        y: 190,
+        x: 20,
+        y: 200,
       },
       {
         id: 'node-3',
@@ -107,8 +109,8 @@ const initialSessions: AutomationSession[] = [
         content: 'اگر محصول به اتمام رسیده باشد',
         badge: 'Condition B',
         badgeColor: 'bg-purple-600 text-white',
-        x: 230,
-        y: 190,
+        x: 240,
+        y: 200,
       },
       {
         id: 'node-4',
@@ -119,8 +121,8 @@ const initialSessions: AutomationSession[] = [
         content: '«درود! کیف دوشی چرم عسلی ۱,۸۵۰,۰۰۰ تومان با ضمانت ۲ ساله موجوده. مایلید رزرو بشه؟»',
         badge: 'Action A',
         badgeColor: 'bg-emerald-600 text-white',
-        x: 30,
-        y: 360,
+        x: 20,
+        y: 380,
       },
       {
         id: 'node-5',
@@ -131,11 +133,10 @@ const initialSessions: AutomationSession[] = [
         content: '«موجودی این مدل به پایان رسیده، اما طی ۳ روز آینده شارژ خواهد شد. شماره تماس جهت رزرو دریافت شد.»',
         badge: 'Action B',
         badgeColor: 'bg-teal-600 text-white',
-        x: 230,
-        y: 360,
+        x: 240,
+        y: 380,
       },
     ],
-    // 1-to-many connections & branching edges!
     edges: [
       {
         id: 'edge-1-2',
@@ -184,8 +185,8 @@ const initialSessions: AutomationSession[] = [
         content: 'ثبت محصول در سبد و عدم پرداخت نهایی پس از ۱۲۰ دقیقه',
         badge: 'Trigger',
         badgeColor: 'bg-amber-500 text-white',
-        x: 100,
-        y: 20,
+        x: 130,
+        y: 30,
       },
       {
         id: 'node-s2-2',
@@ -196,8 +197,8 @@ const initialSessions: AutomationSession[] = [
         content: '«سلام! سبد خرید شما در کارگاه چرم آریا با کد FREE-POST تا پایان امشب ارسال رایگان دارد.»',
         badge: 'Action A',
         badgeColor: 'bg-emerald-600 text-white',
-        x: 30,
-        y: 220,
+        x: 20,
+        y: 230,
       },
       {
         id: 'node-s2-3',
@@ -208,8 +209,8 @@ const initialSessions: AutomationSession[] = [
         content: '«محصولات انتخابی شما به مدت ۲۴ ساعت در انبار رزرو ماند.»',
         badge: 'Action B',
         badgeColor: 'bg-blue-600 text-white',
-        x: 230,
-        y: 220,
+        x: 240,
+        y: 230,
       },
     ],
     edges: [
@@ -247,8 +248,25 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null);
 
-  // Mobile Canvas Zoom
+  // 1. FREE-PANNING & ZOOMING STATE
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [canvasZoom, setCanvasZoom] = useState<number>(95);
+  const [isPanning, setIsPanning] = useState(false);
+
+  // Dragging gesture tracking
+  const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const initialPanRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const pinchStartDistRef = useRef<number | null>(null);
+  const pinchStartZoomRef = useRef<number>(95);
+
+  // Node Dragging on Canvas
+  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
+  const nodeDragStartRef = useRef<{ mouseX: number; mouseY: number; nodeX: number; nodeY: number }>({
+    mouseX: 0,
+    mouseY: 0,
+    nodeX: 0,
+    nodeY: 0,
+  });
 
   // Chat bar natural language input
   const [promptInput, setPromptInput] = useState('');
@@ -276,7 +294,6 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
           ...s,
           edges: s.edges.map((e) => {
             if (e.id !== edgeId) return e;
-            // Swap source and target, and toggle isReversed flag
             return {
               ...e,
               sourceId: e.targetId,
@@ -308,7 +325,6 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
     } else if (connectingSourceId === nodeId) {
       setConnectingSourceId(null);
     } else {
-      // Create new edge connecting connectingSourceId -> nodeId (Multiple branches!)
       const newEdge: GraphEdge = {
         id: `edge-${Date.now()}`,
         sourceId: connectingSourceId,
@@ -341,7 +357,152 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
     }, 1000);
   };
 
-  // Natural language prompt builder
+  // Reset pan and zoom to default
+  const handleResetViewport = () => {
+    setPan({ x: 0, y: 0 });
+    setCanvasZoom(95);
+  };
+
+  // ----------------------------------------------------
+  // TOUCH & MOUSE PAN / PINCH GESTURES
+  // ----------------------------------------------------
+  const handleCanvasMouseDown = (e: React.MouseEvent) => {
+    // Only pan if clicking canvas background (not node or buttons)
+    if (e.target === e.currentTarget || (e.target as HTMLElement).tagName === 'svg') {
+      setIsPanning(true);
+      panStartRef.current = { x: e.clientX, y: e.clientY };
+      initialPanRef.current = { ...pan };
+    }
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent) => {
+    if (draggingNodeId) {
+      const dx = (e.clientX - nodeDragStartRef.current.mouseX) / (canvasZoom / 100);
+      const dy = (e.clientY - nodeDragStartRef.current.mouseY) / (canvasZoom / 100);
+      const newX = Math.round(nodeDragStartRef.current.nodeX + dx);
+      const newY = Math.round(nodeDragStartRef.current.nodeY + dy);
+
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === activeSession.id
+            ? {
+                ...s,
+                nodes: s.nodes.map((n) =>
+                  n.id === draggingNodeId ? { ...n, x: newX, y: newY } : n
+                ),
+              }
+            : s
+        )
+      );
+    } else if (isPanning) {
+      const dx = e.clientX - panStartRef.current.x;
+      const dy = e.clientY - panStartRef.current.y;
+      setPan({
+        x: initialPanRef.current.x + dx,
+        y: initialPanRef.current.y + dy,
+      });
+    }
+  };
+
+  const handleCanvasMouseUp = () => {
+    setIsPanning(false);
+    setDraggingNodeId(null);
+  };
+
+  // Mobile Touch Gestures (Pannable + Pinch to Zoom)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      // 1 Finger: Pan Canvas
+      const touch = e.touches[0];
+      setIsPanning(true);
+      panStartRef.current = { x: touch.clientX, y: touch.clientY };
+      initialPanRef.current = { ...pan };
+      pinchStartDistRef.current = null;
+    } else if (e.touches.length === 2) {
+      // 2 Fingers: Pinch to Zoom
+      setIsPanning(false);
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      pinchStartDistRef.current = dist;
+      pinchStartZoomRef.current = canvasZoom;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 1 && isPanning) {
+      const touch = e.touches[0];
+      const dx = touch.clientX - panStartRef.current.x;
+      const dy = touch.clientY - panStartRef.current.y;
+      setPan({
+        x: initialPanRef.current.x + dx,
+        y: initialPanRef.current.y + dy,
+      });
+    } else if (e.touches.length === 2 && pinchStartDistRef.current !== null) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const factor = dist / pinchStartDistRef.current;
+      const newZoom = Math.min(Math.max(Math.round(pinchStartZoomRef.current * factor), 50), 160);
+      setCanvasZoom(newZoom);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsPanning(false);
+    pinchStartDistRef.current = null;
+    setDraggingNodeId(null);
+  };
+
+  // Start dragging an individual node
+  const handleNodeMouseDown = (e: React.MouseEvent, node: GraphNode) => {
+    e.stopPropagation();
+    setDraggingNodeId(node.id);
+    nodeDragStartRef.current = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      nodeX: node.x,
+      nodeY: node.y,
+    };
+  };
+
+  // Node position helper for SVG connectors
+  const getNodeCenter = (nodeId: string) => {
+    const node = activeSession.nodes.find((n) => n.id === nodeId);
+    if (!node) return { x: 180, y: 100, topX: 180, topY: 100, bottomX: 180, bottomY: 100 };
+    const width = 175;
+    const height = 110;
+    return {
+      x: node.x + width / 2,
+      y: node.y + height / 2,
+      topX: node.x + width / 2,
+      topY: node.y,
+      bottomX: node.x + width / 2,
+      bottomY: node.y + height,
+    };
+  };
+
+  const getPlatformIcon = (platform?: string) => {
+    switch (platform) {
+      case 'instagram':
+        return <InstagramIcon size={13} />;
+      case 'telegram':
+        return <TelegramIcon size={13} />;
+      case 'whatsapp':
+        return <WhatsAppIcon size={13} />;
+      case 'eitaa':
+        return <EitaaIcon size={13} />;
+      case 'bale':
+        return <BaleIcon size={13} />;
+      case 'rubika':
+        return <RubikaIcon size={13} />;
+      default:
+        return <Zap size={13} />;
+    }
+  };
+
   const handlePromptSubmit = (customText?: string) => {
     const text = (customText || promptInput).trim();
     if (!text) return;
@@ -353,7 +514,6 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
       setIsProcessing(false);
 
       if (text.includes('شاخه') || text.includes('چند')) {
-        // Multi-branch flow
         const trigNode: GraphNode = {
           id: `node-${Date.now()}-1`,
           type: 'trigger',
@@ -363,8 +523,8 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
           content: 'دریافت استعلام محصول یا کلمات کلیدی',
           badge: 'Trigger',
           badgeColor: 'bg-amber-500 text-white',
-          x: 100,
-          y: 20,
+          x: 130,
+          y: 30,
         };
         const branchA: GraphNode = {
           id: `node-${Date.now()}-2`,
@@ -375,8 +535,8 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
           content: '«درود! کاتالوگ با قیمت روزانه تقدیم شما.»',
           badge: 'Action A',
           badgeColor: 'bg-emerald-600 text-white',
-          x: 30,
-          y: 220,
+          x: 20,
+          y: 230,
         };
         const branchB: GraphNode = {
           id: `node-${Date.now()}-3`,
@@ -387,8 +547,8 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
           content: '«یک خریدار جدید در دایرکت استعلام قیمت داد.»',
           badge: 'Action B',
           badgeColor: 'bg-sky-600 text-white',
-          x: 230,
-          y: 220,
+          x: 240,
+          y: 230,
         };
 
         const newEdges: GraphEdge[] = [
@@ -422,7 +582,6 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
         setSessions((prev) => [newSession, ...prev]);
         setActiveSessionId(newSession.id);
       } else {
-        // Standard session
         const trigNode: GraphNode = {
           id: `node-${Date.now()}-1`,
           type: 'trigger',
@@ -432,8 +591,8 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
           content: 'دریافت پیام یا تغییر وضعیت سفارش',
           badge: 'Trigger',
           badgeColor: 'bg-amber-500 text-white',
-          x: 100,
-          y: 20,
+          x: 130,
+          y: 30,
         };
         const actNode: GraphNode = {
           id: `node-${Date.now()}-2`,
@@ -444,8 +603,8 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
           content: '«پیام خودکار بر اساس هوش مصنوعی ارسال شد.»',
           badge: 'Action',
           badgeColor: 'bg-emerald-600 text-white',
-          x: 100,
-          y: 220,
+          x: 130,
+          y: 230,
         };
 
         const newSession: AutomationSession = {
@@ -471,42 +630,6 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
         setActiveSessionId(newSession.id);
       }
     }, 800);
-  };
-
-  const getPlatformIcon = (platform?: string) => {
-    switch (platform) {
-      case 'instagram':
-        return <InstagramIcon size={13} />;
-      case 'telegram':
-        return <TelegramIcon size={13} />;
-      case 'whatsapp':
-        return <WhatsAppIcon size={13} />;
-      case 'eitaa':
-        return <EitaaIcon size={13} />;
-      case 'bale':
-        return <BaleIcon size={13} />;
-      case 'rubika':
-        return <RubikaIcon size={13} />;
-      default:
-        return <Zap size={13} />;
-    }
-  };
-
-  // Node position helper for SVG connectors
-  const getNodeCenter = (nodeId: string) => {
-    const node = activeSession.nodes.find((n) => n.id === nodeId);
-    if (!node) return { x: 180, y: 100, topX: 180, topY: 100, bottomX: 180, bottomY: 100 };
-    // Node card dimensions: width ~180px, height ~110px
-    const width = 180;
-    const height = 110;
-    return {
-      x: node.x + width / 2,
-      y: node.y + height / 2,
-      topX: node.x + width / 2,
-      topY: node.y,
-      bottomX: node.x + width / 2,
-      bottomY: node.y + height,
-    };
   };
 
   return (
@@ -564,34 +687,46 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
         </div>
       </div>
 
-      {/* Floating Canvas Controls (Zoom In, Zoom Out, Branch Connection Helper) */}
+      {/* Floating Canvas Controls (Free Pan & Zoom Tools) */}
       <div className="absolute top-14 left-4 z-20 flex items-center gap-1 bg-white/95 border border-slate-200/90 shadow-sm rounded-full p-1">
+        <div
+          className={`w-6 h-6 rounded-full flex items-center justify-center text-xs transition-colors ${
+            isPanning ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500'
+          }`}
+          title="قابلیت حرکت آزادانه در کانواس (Pannable با لمس یا کشیدن)"
+        >
+          <Hand size={12} />
+        </div>
+
         <button
           type="button"
-          onClick={() => setCanvasZoom((z) => Math.min(z + 10, 130))}
+          onClick={() => setCanvasZoom((z) => Math.min(z + 10, 150))}
           className="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-700 text-xs"
-          title="بزرگنمایی"
+          title="بزرگنمایی (+)"
         >
           <ZoomIn size={12} />
         </button>
-        <span className="text-[9px] font-mono text-slate-500 px-1">
+
+        <span className="text-[9px] font-mono text-slate-600 px-1 font-bold">
           {canvasZoom}%
         </span>
+
         <button
           type="button"
-          onClick={() => setCanvasZoom((z) => Math.max(z - 10, 70))}
+          onClick={() => setCanvasZoom((z) => Math.max(z - 10, 50))}
           className="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-700 text-xs"
-          title="کوچک‌نمایی"
+          title="کوچک‌نمایی (-)"
         >
           <ZoomOut size={12} />
         </button>
+
         <button
           type="button"
-          onClick={() => setCanvasZoom(95)}
+          onClick={handleResetViewport}
           className="w-6 h-6 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-700 text-xs"
-          title="اندازه بهینه"
+          title="تنظیم مجدد موقعیت و بزرگنمایی"
         >
-          <Maximize2 size={11} />
+          <RotateCcw size={11} />
         </button>
       </div>
 
@@ -631,31 +766,52 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
       )}
 
       {/* ======================================================== */}
-      {/* TRUE VISUAL GRAPH CANVAS WITH SVG CONNECTORS & BRANCHES */}
+      {/* FREE PANNABLE & ZOOMABLE CANVAS SURFACE */}
       {/* ======================================================== */}
-      <div className="flex-1 overflow-auto p-4 pt-16 relative bg-[#FAF9FD] select-none">
-        {/* Subtle Canvas Dot Grid Pattern */}
-        <div className="absolute inset-0 bg-[radial-gradient(#cbd5e1_1px,transparent_1px)] [background-size:18px_18px] opacity-75 pointer-events-none min-w-[500px] min-h-[600px]" />
+      <div
+        className={`flex-1 relative bg-[#FAF9FD] overflow-hidden select-none touch-none ${
+          isPanning ? 'cursor-grabbing' : 'cursor-grab'
+        }`}
+        onMouseDown={handleCanvasMouseDown}
+        onMouseMove={handleCanvasMouseMove}
+        onMouseUp={handleCanvasMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        {/* Infinite Dot Grid Pattern that moves seamlessly with Pan */}
+        <div
+          className="absolute inset-0 pointer-events-none opacity-80"
+          style={{
+            backgroundImage: 'radial-gradient(#cbd5e1 1.2px, transparent 1.2px)',
+            backgroundSize: `${20 * (canvasZoom / 100)}px ${20 * (canvasZoom / 100)}px`,
+            backgroundPosition: `${pan.x}px ${pan.y}px`,
+          }}
+        />
 
         {/* Simulation Notification Toast */}
         {testLog && (
-          <div className="relative z-30 mb-3 p-2.5 rounded-xl bg-slate-900 text-emerald-400 text-xs font-mono leading-relaxed border border-emerald-500/30 shadow-md flex items-center gap-2">
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-30 p-2.5 rounded-xl bg-slate-900 text-emerald-400 text-xs font-mono leading-relaxed border border-emerald-500/30 shadow-md flex items-center gap-2 max-w-sm">
             <CheckCircle2 size={14} className="shrink-0 text-emerald-400" />
             <span>{testLog}</span>
           </div>
         )}
 
-        {/* Zoomable Container */}
+        {/* Scaled & Translated Canvas Content Layer */}
         <div
-          style={{ transform: `scale(${canvasZoom / 100})`, transformOrigin: 'top center' }}
-          className="relative w-[440px] h-[520px] mx-auto transition-transform duration-150"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${canvasZoom / 100})`,
+            transformOrigin: 'top left',
+            width: '480px',
+            height: '560px',
+          }}
+          className="absolute top-8 right-6 transition-transform duration-75 ease-out"
         >
           {/* ==================================================== */}
           {/* SVG LAYER: GORGEOUS BEZIER EDGES & FLOW ARROWS */}
           {/* ==================================================== */}
           <svg className="absolute inset-0 w-full h-full pointer-events-none z-10 overflow-visible">
             <defs>
-              {/* Arrowheads for normal and reversed directions */}
               <marker
                 id="edge-arrow"
                 viewBox="0 0 10 10"
@@ -695,7 +851,6 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
               const src = getNodeCenter(edge.sourceId);
               const tgt = getNodeCenter(edge.targetId);
 
-              // Calculate smooth Bezier Curve between ports
               const startX = src.bottomX;
               const startY = src.bottomY;
               const endX = tgt.topX;
@@ -760,7 +915,7 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
                         {edge.label || 'لبه'}
                       </span>
 
-                      {/* 1-Tap REVERSE BUTTON (فقط برعکس هم میتونن بشن) */}
+                      {/* 1-Tap REVERSE BUTTON */}
                       <button
                         type="button"
                         onClick={(ev) => {
@@ -782,10 +937,11 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
           </svg>
 
           {/* ==================================================== */}
-          {/* GRAPH NODES LAYER */}
+          {/* DRAGGABLE GRAPH NODES LAYER */}
           {/* ==================================================== */}
           {activeSession.nodes.map((node) => {
             const isConnecting = connectingSourceId === node.id;
+            const isDraggingThis = draggingNodeId === node.id;
 
             return (
               <div
@@ -794,11 +950,14 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
                   position: 'absolute',
                   left: `${node.x}px`,
                   top: `${node.y}px`,
-                  width: '180px',
+                  width: '175px',
                 }}
+                onMouseDown={(e) => handleNodeMouseDown(e, node)}
                 onClick={() => setSelectedNode(node)}
-                className={`p-2.5 rounded-2xl bg-white border shadow-md transition-all text-right relative z-20 cursor-pointer active:scale-98 ${
-                  isConnecting
+                className={`p-2.5 rounded-2xl bg-white border shadow-md transition-shadow text-right relative z-20 cursor-move active:scale-98 ${
+                  isDraggingThis
+                    ? 'shadow-xl ring-2 ring-indigo-500'
+                    : isConnecting
                     ? 'ring-2 ring-indigo-500 border-indigo-500 shadow-indigo-500/20'
                     : node.type === 'trigger'
                     ? 'border-amber-300 hover:border-amber-400'
@@ -1054,8 +1213,7 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
       )}
 
       {/* ======================================================== */}
-      {/* SESSIONS & SAVED AUTOMATIONS SIDE SHEET */}
-      {/* PURE X-AXIS SLIDE - ABSOLUTELY NO FADE ANIMATION */}
+      {/* SESSIONS SIDE SHEET - PURE X-AXIS SLIDE */}
       {/* ======================================================== */}
       {isSideSheetOpen && (
         <div
@@ -1068,7 +1226,6 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
             dir="rtl"
           >
             <div className="space-y-3.5">
-              {/* Sheet Header */}
               <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-lg bg-slate-900 text-white flex items-center justify-center">
@@ -1087,7 +1244,6 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
                 </button>
               </div>
 
-              {/* Sessions List */}
               <div className="space-y-1.5">
                 {sessions.map((session) => {
                   const isSelected = session.id === activeSessionId;
@@ -1131,7 +1287,6 @@ export const AutomationBuilderScreen: React.FC<AutomationBuilderScreenProps> = (
               </div>
             </div>
 
-            {/* Quick Create Button in Sheet */}
             <div className="pt-3 border-t border-slate-100">
               <button
                 type="button"
